@@ -4,9 +4,7 @@
   "compilerOptions": {
     "baseUrl": ".",
     "importsNotUsedAsValues": "remove",
-    "paths": {
-      "@/*": ["./src/*"]
-    }
+    "paths": { "@/*": ["./src/*"] }
   },
 
   "references": [
