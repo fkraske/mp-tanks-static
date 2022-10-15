@@ -5,11 +5,11 @@ import App from './client/game/App.vue';
 import { Chronology } from './shared/framework/chronology/Chronology';
 import { Snapshot } from './shared/framework/chronology/Snapshot';
 import { TimeStamped } from './shared/framework/chronology/TimeStamped';
-import { IOEvents } from './shared/framework/communication/events';
-import type { InputMessage } from './shared/framework/communication/messages';
+import * as IOEvents from './shared/framework/communication/events';
 import { Vector2 } from './shared/framework/math/Vector2';
 import { Time } from './shared/framework/simulation/Time';
-import type { TurnInputMessage } from './shared/game/communication/communication';
+import * as CustomEvents from './shared/game/communication/events';
+import type { TurnInputMessage } from './shared/game/communication/messages';
 import { PORT } from './shared/game/constants';
 import { Game } from './shared/game/state/Game';
 import { Player } from './shared/game/state/Player';
@@ -32,14 +32,14 @@ if (!drawCtx)
 
 let socket = io('http://localhost:' + PORT)
 socket.on(
-  IOEvents.Builtin.CONNECT,
+  IOEvents.CONNECT,
   () => {
     chronology = new Chronology(new Snapshot<Game>(Time.current, new Game()), 3)
     drawLoop()
     registerInput()
 
     socket.emit(
-      IOEvents.CUSTOM,
+      CustomEvents.INPUT_TURN,
       new TimeStamped<TurnInputMessage>(
         Time.current,
         { inputTime: Time.current, direction: 0 }
@@ -48,7 +48,7 @@ socket.on(
   }
 )
 socket.on(
-  IOEvents.Builtin.DISCONNECT,
+  IOEvents.DISCONNECT,
   () => {
     chronology = null
     deregisterInput()
