@@ -4,14 +4,18 @@ import { View } from './client/framework/graphics/View';
 import App from './client/game/App.vue';
 import { Chronology } from './shared/framework/chronology/Chronology';
 import { Snapshot } from './shared/framework/chronology/Snapshot';
+import { TimeStamped } from './shared/framework/chronology/TimeStamped';
 import { IOEvents } from './shared/framework/communication/events';
+import type { InputMessage } from './shared/framework/communication/messages';
 import { Vector2 } from './shared/framework/math/Vector2';
 import { Time } from './shared/framework/simulation/Time';
+import type { TurnInputMessage } from './shared/game/communication/communication';
+import { PORT } from './shared/game/constants';
 import { Game } from './shared/game/state/Game';
 import { Player } from './shared/game/state/Player';
 
 const app = createApp(App);
-let chronology: Chronology<Game> /*TODO remove*/ = new Chronology(new Snapshot<Game>(Time.current, new Game()), 3)
+let chronology: Chronology<Game> | null
 
 app.mount('#app');
 
@@ -26,11 +30,28 @@ if (!drawCtx)
 
 
 
-let socket = io('https://localhost')
+let socket = io('http://localhost:' + PORT)
 socket.on(
-  IOEvents.Builtin.CONNECTION,
+  IOEvents.Builtin.CONNECT,
   () => {
-    drawGame()
+    chronology = new Chronology(new Snapshot<Game>(Time.current, new Game()), 3)
+    drawLoop()
+    registerInput()
+
+    socket.emit(
+      IOEvents.CUSTOM,
+      new TimeStamped<TurnInputMessage>(
+        Time.current,
+        { inputTime: Time.current, direction: 0 }
+      )
+    )
+  }
+)
+socket.on(
+  IOEvents.Builtin.DISCONNECT,
+  () => {
+    chronology = null
+    deregisterInput()
   }
 )
   
@@ -38,7 +59,7 @@ socket.on(
   
 //TODO set canvas aspect ratio
 
-function drawGame() {
+function drawLoop() {
   if (!chronology)
     return
     
@@ -56,26 +77,41 @@ function drawGame() {
   }
 
   drawCtx!.clearRect(0, 0, canvas.width, canvas.height)
+  
+  drawCtx!.fillStyle = '#ddd'
+  drawCtx!.fillRect(0, 0, view.zoom, view.zoom)
 
-  let p1p = view.transform(frame.state.player1.position)
-  let p2p = view.transform(frame.state.player2.position)
-  let pr = Player.Radius * view.zoom
+  drawPlayer(frame.state.player1)
+  drawPlayer(frame.state.player2)
+}
 
+function drawPlayer(player: Player) {
+  const position = view.transform(player.position)
+  const pr = Player.Radius * view.zoom
+  
   drawCtx!.ellipse(
-    p1p.x, p1p.y,
+    position.x, position.y,
     pr, pr,
     0,
     0, 2 * Math.PI
   )
-
-  drawCtx!.ellipse(
-    p2p.x, p2p.y,
-    pr, pr,
-    0,
-    0, 2 * Math.PI
-  )
-
+  drawCtx!.fillStyle = '#000'
   drawCtx!.fill()
 
-  window.requestAnimationFrame(drawGame)
+  const cannonOffset = position.addV(Vector2.fromAngle(player.angle).mul(Player.CannonLength * view.zoom))
+  drawCtx!.lineWidth = Player.Radius * 0.5 * view.zoom
+  drawCtx!.beginPath()
+  drawCtx!.moveTo(position.x, position.y)
+  drawCtx!.lineTo(cannonOffset.x, cannonOffset.y)
+  drawCtx!.closePath()
+  drawCtx!.strokeStyle = '#000'
+  drawCtx!.stroke()
+}
+
+function registerInput() {
+  //TODO implement
+}
+
+function deregisterInput() {
+  //TODO implement
 }
