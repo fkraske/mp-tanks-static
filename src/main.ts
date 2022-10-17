@@ -125,8 +125,8 @@ function frameLoop() {
     view.zoom
   )
 
-  drawPlayer(display.state.player1)
-  drawPlayer(display.state.player2)
+  drawPlayer(display.state.player1, '#c53')
+  drawPlayer(display.state.player2, '#37b')
 
   frameID = window.requestAnimationFrame(frameLoop)
 }
@@ -136,10 +136,12 @@ function cancelFrameLoop() {
     window.cancelAnimationFrame(frameID)
 }
 
-function drawPlayer(player: Player) {
+function drawPlayer(player: Player, style: string) {
   const pp = view.transform(player.position)
   const pr = view.transformSize(Player.Radius)
   const pf = view.transformDirection(player.forward)
+  
+  drawCtx.fillStyle = drawCtx.strokeStyle = style
 
   //Player base
   drawCtx.beginPath()
@@ -150,18 +152,34 @@ function drawPlayer(player: Player) {
     0, 2 * Math.PI
   )
   drawCtx.closePath()
-  drawCtx.fillStyle = '#000'
   drawCtx.fill()
 
   //Player cannon
-  const cannonOffset = pp.addV(pf.mul(Player.CannonLength))
+  const cannonOffset = pf.mul(Player.CannonLength)
+  const cannonTip = pp.addV(cannonOffset)
   drawCtx.lineWidth = pr / 2
   drawCtx.beginPath()
   drawCtx.moveTo(pp.x, pp.y)
-  drawCtx.lineTo(cannonOffset.x, cannonOffset.y)
+  drawCtx.lineTo(cannonTip.x, cannonTip.y)
   drawCtx.closePath()
-  drawCtx.strokeStyle = '#000'
   drawCtx.stroke()
+
+  //Player lives
+  const livesOffset = cannonOffset.negate()
+  const live1Offset = new Vector2(livesOffset.y, -livesOffset.x).div(3)
+  
+  for (let i = 0; i < player.lives; ++i) {
+    drawCtx.beginPath()
+    drawCtx.ellipse(
+      pp.x + livesOffset.x - live1Offset.x + live1Offset.x * i,
+      pp.y + livesOffset.y - live1Offset.y + live1Offset.y * i,
+      pr / 5, pr / 5,
+      0,
+      0, 2 * Math.PI
+    )
+    drawCtx.closePath()
+    drawCtx.fill()
+  }
 
   //Bullet
   if (!player.bullet)
@@ -178,7 +196,6 @@ function drawPlayer(player: Player) {
     0, 2 * Math.PI
   )
   drawCtx.closePath()
-  drawCtx.fillStyle = '#000'
   drawCtx.fill()
 }
 
