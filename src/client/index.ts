@@ -1,9 +1,5 @@
 import { io } from 'socket.io-client';
 import { createApp } from 'vue';
-import * as Constants from './constants';
-import { registerClientEvent } from './framework/events';
-import { View } from './framework/View';
-import App from './game/App.vue';
 import { Chronology } from '../shared/framework/chronology/Chronology';
 import { Snapshot } from '../shared/framework/chronology/Snapshot';
 import type { TimeStamp } from '../shared/framework/chronology/TimeStamp';
@@ -14,10 +10,13 @@ import { Vector2 } from '../shared/framework/math/Vector2';
 import { Time } from '../shared/framework/simulation/Time';
 import { Utils } from '../shared/framework/util/numberUtils';
 import * as ClientEvents from '../shared/game/communication/client';
-import { PORT } from '../shared/game/constants';
 import { Bullet } from '../shared/game/state/Bullet';
 import { Game, GameState } from '../shared/game/state/Game';
 import { Player } from '../shared/game/state/Player';
+import * as Constants from './constants';
+import { registerClientEvent } from './framework/events';
+import { View } from './framework/View';
+import App from './game/App.vue';
 
 
 
@@ -42,7 +41,7 @@ const view = new View(
 
 
 
-let socket = io('http://localhost:' + PORT)
+let socket = io('http://' + Constants.DOMAIN + ':' + Constants.SOCKET_IO_PORT)
 socket.on(
   IOEvents.CONNECT,
   () => {
