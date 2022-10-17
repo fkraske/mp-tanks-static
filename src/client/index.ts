@@ -1,23 +1,23 @@
 import { io } from 'socket.io-client';
 import { createApp } from 'vue';
-import * as Constants from './client/constants';
-import { registerClientEvent } from './client/framework/events';
-import { View } from './client/framework/View';
-import App from './client/game/App.vue';
-import { Chronology } from './shared/framework/chronology/Chronology';
-import { Snapshot } from './shared/framework/chronology/Snapshot';
-import type { TimeStamp } from './shared/framework/chronology/TimeStamp';
-import * as ServerEvents from './shared/framework/communication/server';
-import * as IOEvents from './shared/framework/communication/socket-io';
-import { ID } from './shared/framework/id/ID';
-import { Vector2 } from './shared/framework/math/Vector2';
-import { Time } from './shared/framework/simulation/Time';
-import { Utils } from './shared/framework/util/numberUtils';
-import * as ClientEvents from './shared/game/communication/client';
-import { PORT } from './shared/game/constants';
-import { Bullet } from './shared/game/state/Bullet';
-import { Game, GameState } from './shared/game/state/Game';
-import { Player } from './shared/game/state/Player';
+import * as Constants from './constants';
+import { registerClientEvent } from './framework/events';
+import { View } from './framework/View';
+import App from './game/App.vue';
+import { Chronology } from '../shared/framework/chronology/Chronology';
+import { Snapshot } from '../shared/framework/chronology/Snapshot';
+import type { TimeStamp } from '../shared/framework/chronology/TimeStamp';
+import * as ServerEvents from '../shared/framework/communication/server';
+import * as IOEvents from '../shared/framework/communication/socket-io';
+import { ID } from '../shared/framework/id/ID';
+import { Vector2 } from '../shared/framework/math/Vector2';
+import { Time } from '../shared/framework/simulation/Time';
+import { Utils } from '../shared/framework/util/numberUtils';
+import * as ClientEvents from '../shared/game/communication/client';
+import { PORT } from '../shared/game/constants';
+import { Bullet } from '../shared/game/state/Bullet';
+import { Game, GameState } from '../shared/game/state/Game';
+import { Player } from '../shared/game/state/Player';
 
 
 
