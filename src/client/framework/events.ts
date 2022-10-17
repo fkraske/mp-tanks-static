@@ -8,7 +8,8 @@ import { Time } from '../../shared/framework/simulation/Time'
 export function registerClientEvent<T, E extends Morphable<E>>(
   socket: Socket,
   chronology: Chronology<E>,
-  clientEvent: ClientEvent<T, E>
+  clientEvent: ClientEvent<T, E>,
+  lastUpdateTimeUpdater: () => void
 ) {
   socket.on(
     clientEvent.name,
@@ -21,6 +22,7 @@ export function registerClientEvent<T, E extends Morphable<E>>(
       }
 
       chronology.addTimeStampedLeap(clientEvent.getTimeStampedLeap(payload.connectionID, payload))
+      lastUpdateTimeUpdater()
     }
   )
 }

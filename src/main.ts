@@ -1,17 +1,18 @@
 import { io } from 'socket.io-client';
 import { createApp } from 'vue';
+import * as Constants from './client/constants';
 import { registerClientEvent } from './client/framework/events';
-import { View } from './client/framework/graphics/View';
+import { View } from './client/framework/View';
 import App from './client/game/App.vue';
 import { Chronology } from './shared/framework/chronology/Chronology';
 import { Snapshot } from './shared/framework/chronology/Snapshot';
 import type { TimeStamp } from './shared/framework/chronology/TimeStamp';
-import { restoreClassObject } from './shared/framework/communication/deserialization';
 import * as ServerEvents from './shared/framework/communication/server';
 import * as IOEvents from './shared/framework/communication/socket-io';
 import { ID } from './shared/framework/id/ID';
 import { Vector2 } from './shared/framework/math/Vector2';
 import { Time } from './shared/framework/simulation/Time';
+import { Utils } from './shared/framework/util/numberUtils';
 import * as ClientEvents from './shared/game/communication/client';
 import { ActiveState } from './shared/game/communication/model/ActiveState';
 import { MoveDirection } from './shared/game/communication/model/MoveDirection';
@@ -27,6 +28,8 @@ import { Player } from './shared/game/state/Player';
 
 const app = createApp(App);
 let chronology = new Chronology<Game>(new Snapshot<Game>(Time.frame, new Game()))
+let display = chronology.get(Time.frame)
+let lastUpdateTime = Time.frame
 let id = -1
 let frameID = -1
 
@@ -48,15 +51,14 @@ let socket = io('http://localhost:' + PORT)
 socket.on(
   IOEvents.CONNECT,
   () => {
-    chronology.clear()
-    drawLoop()
+    frameLoop()
     registerInput()
   }
 )
 socket.on(
   IOEvents.DISCONNECT,
   () => {
-    cancelDraw()
+    cancelFrameLoop()
     deregisterInput()
   }
 )
@@ -68,11 +70,22 @@ socket.on(
   }
 )
 socket.on(
+  ServerEvents.INIT,
+  (snapshot: Snapshot<Game>) => {
+    console.info('Received initialization data')
+    snapshot = new Snapshot<Game>(snapshot.timeStamp, Game.cloneDeserialized(snapshot.value))
+    lastUpdateTime = Time.current
+    display = snapshot
+    chronology.clear()
+    chronology.updateRoot(snapshot)
+  }
+)
+socket.on(
   ServerEvents.UPDATE_ROOT,
   (snapshot: Snapshot<Game>) => {
     console.info('Received Snapshot')
     snapshot = new Snapshot<Game>(snapshot.timeStamp, Game.cloneDeserialized(snapshot.value))
-    console.debug(snapshot)
+    lastUpdateTime = Time.current
     chronology.updateRoot(snapshot)
   }
 )
@@ -81,16 +94,19 @@ for (const ev of ClientEvents.All)
   registerClientEvent<{ inputTime: TimeStamp }, Game>(
     socket,
     chronology,
-    ev
+    ev,
+    () => lastUpdateTime = Time.current
   )
 
 
 
-//TODO set canvas aspect ratio
-
-function drawLoop() {
+function frameLoop() {
   Time.update()
-  let frame = chronology.get(Time.frame)
+  display.advance(Time.delta)
+  display = display.interpolate(
+    chronology.get(Time.frame),
+    Utils.clamp01((Time.frame - lastUpdateTime) / Constants.INTEPROLATION_DURATION)
+  )
 
   if (canvas.width != Math.floor(canvas.clientWidth)) {
     canvas.width = canvas.clientWidth
@@ -114,13 +130,13 @@ function drawLoop() {
     view.zoom
   )
 
-  drawPlayer(frame.state.player1)
-  drawPlayer(frame.state.player2)
+  drawPlayer(display.state.player1)
+  drawPlayer(display.state.player2)
 
-  frameID = window.requestAnimationFrame(drawLoop)
+  frameID = window.requestAnimationFrame(frameLoop)
 }
 
-function cancelDraw() {
+function cancelFrameLoop() {
   if (frameID !== -1)
     window.cancelAnimationFrame(frameID)
 }
@@ -186,69 +202,93 @@ function deregisterInput() {
 function handleKeyDown(ev: KeyboardEvent) {
   const time = Time.current
 
+  let event:
+    ClientEvents.ClientMoveEvent |
+    ClientEvents.ClientTurnEvent |
+    ClientEvents.ClientShootEvent |
+    undefined
+
   switch (ev.key) {
     case 'w':
-      chronology.addLeap(time, g => g.addPlayerMoveInput(id, new MoveDirectionState(MoveDirection.Up, ActiveState.Active)))
-      socket.emit(ClientEvents.MoveUpStart.name, { inputTime: time })
+      event = ClientEvents.MoveUpStart
       break
     case 'd':
-      chronology.addLeap(time, g => g.addPlayerMoveInput(id, new MoveDirectionState(MoveDirection.Right, ActiveState.Active)))
-      socket.emit(ClientEvents.MoveRightStart.name, { inputTime: time })
+      event = ClientEvents.MoveRightStart
       break
     case 's':
-      chronology.addLeap(time, g => g.addPlayerMoveInput(id, new MoveDirectionState(MoveDirection.Down, ActiveState.Active)))
-      socket.emit(ClientEvents.MoveDownStart.name, { inputTime: time })
+      event = ClientEvents.MoveDownStart
       break
     case 'a':
-      chronology.addLeap(time, g => g.addPlayerMoveInput(id, new MoveDirectionState(MoveDirection.Left, ActiveState.Active)))
-      socket.emit(ClientEvents.MoveLeftStart.name, { inputTime: time })
+      event = ClientEvents.MoveLeftStart
       break
     case 'ArrowRight':
-      chronology.addLeap(time, g => g.addPlayerTurnInput(id, new TurnDirectionState(TurnDirection.Clockwise, ActiveState.Active)))
-      socket.emit(ClientEvents.TurnClockwiseStart.name, { inputTime: time })
+      event = ClientEvents.TurnClockwiseStart
       break
     case 'ArrowLeft':
-      chronology.addLeap(time, g => g.addPlayerTurnInput(id, new TurnDirectionState(TurnDirection.CounterClockwise, ActiveState.Active)))
-      socket.emit(ClientEvents.TurnCounterClockwiseStart.name, { inputTime: time })
+      event = ClientEvents.TurnCounterClockwiseStart
       break
     case ' ':
-      chronology.addLeap(time, g => g.addPlayerShootInput(id, ActiveState.Active))
-      socket.emit(ClientEvents.ShootStart.name, { inputTime: time })
+      event = ClientEvents.ShootStart
       break
   }
+
+  if (event === undefined)
+    return
+
+  const payload = { inputTime: time }
+  const leap = event.getTimeStampedLeap(id, payload)
+
+  chronology.addTimeStampedLeap(leap)
+  socket.emit(event.name, payload)
+
+  Time.update()
+  display.advance(Time.delta)
+  display.leap(leap.value)
 }
 
 function handleKeyUp(ev: KeyboardEvent) {
   const time = Time.current
 
-  switch (ev.key) {
-    case 'w':
-      chronology.addLeap(time, g => g.addPlayerMoveInput(id, new MoveDirectionState(MoveDirection.Up, ActiveState.Inactive)))
-      socket.emit(ClientEvents.MoveUpEnd.name, { inputTime: time })
-      break
-    case 'd':
-      chronology.addLeap(time, g => g.addPlayerMoveInput(id, new MoveDirectionState(MoveDirection.Right, ActiveState.Inactive)))
-      socket.emit(ClientEvents.MoveRightEnd.name, { inputTime: time })
-      break
-    case 's':
-      chronology.addLeap(time, g => g.addPlayerMoveInput(id, new MoveDirectionState(MoveDirection.Down, ActiveState.Inactive)))
-      socket.emit(ClientEvents.MoveDownEnd.name, { inputTime: time })
-      break
-    case 'a':
-      chronology.addLeap(time, g => g.addPlayerMoveInput(id, new MoveDirectionState(MoveDirection.Left, ActiveState.Inactive)))
-      socket.emit(ClientEvents.MoveLeftEnd.name, { inputTime: time })
-      break
-    case 'ArrowRight':
-      chronology.addLeap(time, g => g.addPlayerTurnInput(id, new TurnDirectionState(TurnDirection.Clockwise, ActiveState.Inactive)))
-      socket.emit(ClientEvents.TurnClockwiseEnd.name, { inputTime: time })
-      break
-    case 'ArrowLeft':
-      chronology.addLeap(time, g => g.addPlayerTurnInput(id, new TurnDirectionState(TurnDirection.CounterClockwise, ActiveState.Inactive)))
-      socket.emit(ClientEvents.TurnCounterClockwiseEnd.name, { inputTime: time })
-      break
-    case ' ':
-      chronology.addLeap(time, g => g.addPlayerShootInput(id, ActiveState.Inactive))
-      socket.emit(ClientEvents.ShootEnd.name, { inputTime: time })
-      break
-  }
+  let event:
+    ClientEvents.ClientMoveEvent |
+    ClientEvents.ClientTurnEvent |
+    ClientEvents.ClientShootEvent |
+    undefined
+
+    switch (ev.key) {
+      case 'w':
+        event = ClientEvents.MoveUpEnd
+        break
+      case 'd':
+        event = ClientEvents.MoveRightEnd
+        break
+      case 's':
+        event = ClientEvents.MoveDownEnd
+        break
+      case 'a':
+        event = ClientEvents.MoveLeftEnd
+        break
+      case 'ArrowRight':
+        event = ClientEvents.TurnClockwiseEnd
+        break
+      case 'ArrowLeft':
+        event = ClientEvents.TurnCounterClockwiseEnd
+        break
+      case ' ':
+        event = ClientEvents.ShootEnd
+        break
+    }
+
+  if (event === undefined)
+    return
+
+  const payload = { inputTime: time }
+  const leap = event.getTimeStampedLeap(id, payload)
+
+  chronology.addTimeStampedLeap(leap)
+  socket.emit(event.name, payload)
+  
+  Time.update()
+  display.advance(Time.delta)
+  display.leap(leap.value)
 }
