@@ -36,7 +36,11 @@ app.mount('#app');
 
 const canvas = document.getElementById('canvas') as HTMLCanvasElement
 const drawCtx = canvas!.getContext('2d')!
-const view = new View(Vector2.Zero, Math.min(canvas.width, canvas.height))
+const view = new View(
+  Vector2.Zero,
+  new Vector2(canvas.width, canvas.height).sub(Math.min(canvas.width, canvas.height)).div(2),
+  Math.min(canvas.width, canvas.height)
+)
 
 
 
@@ -91,17 +95,24 @@ function drawLoop() {
   if (canvas.width != Math.floor(canvas.clientWidth)) {
     canvas.width = canvas.clientWidth
     view.zoom = Math.min(canvas.width, canvas.height)
+    view.offset = new Vector2(canvas.width, canvas.height).sub(view.zoom).div(2)
   }
 
   if (canvas.height != Math.floor(canvas.clientHeight)) {
     canvas.height = canvas.clientHeight
     view.zoom = Math.min(canvas.width, canvas.height)
+    view.offset = new Vector2(canvas.width, canvas.height).sub(view.zoom).div(2)
   }
 
   drawCtx.clearRect(0, 0, canvas.width, canvas.height)
 
   drawCtx.fillStyle = '#ddd'
-  drawCtx.fillRect(0, 0, view.zoom, view.zoom)
+  drawCtx.fillRect(
+    view.offset.x,
+    view.offset.y,
+    view.zoom,
+    view.zoom
+  )
 
   drawPlayer(frame.state.player1)
   drawPlayer(frame.state.player2)

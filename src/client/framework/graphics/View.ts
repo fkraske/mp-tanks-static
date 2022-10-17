@@ -2,12 +2,13 @@ import { Vector2 } from '@/shared/framework/math/Vector2';
 
 export class View {
   public constructor(
-    public position: Vector2,
+    public worldPosition: Vector2,
+    public offset: Vector2,
     public zoom: number
   ) { }
 
   public transform(position: Vector2) {
-    return position.subV(this.position).flipY().add(1).div(2).mul(this.zoom)
+    return position.subV(this.worldPosition).flipY().add(1).div(2).mul(this.zoom).addV(this.offset)
   }
 
   public transformDirection(direction: Vector2) {
@@ -15,7 +16,7 @@ export class View {
   }
 
   public inverseTransform(position: Vector2) {
-    return position.div(this.zoom).mul(2).sub(1).flipY().addV(this.position)
+    return position.subV(this.offset).div(this.zoom).mul(2).sub(1).flipY().addV(this.worldPosition)
   }
 
   public inverseTransformDirection(direction: Vector2) {
