@@ -6,7 +6,7 @@ import App from './client/game/App.vue';
 import { Chronology } from './shared/framework/chronology/Chronology';
 import { Snapshot } from './shared/framework/chronology/Snapshot';
 import type { TimeStamp } from './shared/framework/chronology/TimeStamp';
-import { deepMerge } from './shared/framework/communication/deserialization';
+import { restoreClassObject } from './shared/framework/communication/deserialization';
 import * as ServerEvents from './shared/framework/communication/server';
 import * as IOEvents from './shared/framework/communication/socket-io';
 import { ID } from './shared/framework/id/ID';
@@ -19,6 +19,7 @@ import { MoveDirectionState } from './shared/game/communication/model/MoveDirect
 import { TurnDirection } from './shared/game/communication/model/TurnDirection';
 import { TurnDirectionState } from './shared/game/communication/model/TurnDirectionState';
 import { PORT } from './shared/game/constants';
+import { Bullet } from './shared/game/state/Bullet';
 import { Game } from './shared/game/state/Game';
 import { Player } from './shared/game/state/Player';
 
@@ -66,7 +67,8 @@ socket.on(
   ServerEvents.UPDATE_ROOT,
   (snapshot: Snapshot<Game>) => {
     console.info('Received Snapshot')
-    snapshot = deepMerge<Snapshot<Game>>(new Snapshot<Game>(snapshot.timeStamp, new Game()), snapshot)
+    snapshot = new Snapshot<Game>(snapshot.timeStamp, Game.cloneDeserialized(snapshot.value))
+    console.debug(snapshot)
     chronology.updateRoot(snapshot)
   }
 )
@@ -113,26 +115,49 @@ function cancelDraw() {
 }
 
 function drawPlayer(player: Player) {
-  const position = view.transform(player.position)
-  const pr = Player.Radius * view.zoom
+  const pp = view.transform(player.position)
+  const pr = view.transformSize(Player.Radius)
+  const pf = view.transformDirection(player.forward)
 
+  //Player base
+  drawCtx.beginPath()
   drawCtx.ellipse(
-    position.x, position.y,
+    pp.x, pp.y,
     pr, pr,
     0,
     0, 2 * Math.PI
   )
+  drawCtx.closePath()
   drawCtx.fillStyle = '#000'
   drawCtx.fill()
 
-  const cannonOffset = position.addV(Vector2.fromAngle(player.angle).mul(Player.CannonLength * view.zoom))
-  drawCtx.lineWidth = Player.Radius * 0.5 * view.zoom
+  //Player cannon
+  const cannonOffset = pp.addV(pf.mul(Player.CannonLength))
+  drawCtx.lineWidth = pr / 2
   drawCtx.beginPath()
-  drawCtx.moveTo(position.x, position.y)
+  drawCtx.moveTo(pp.x, pp.y)
   drawCtx.lineTo(cannonOffset.x, cannonOffset.y)
   drawCtx.closePath()
   drawCtx.strokeStyle = '#000'
   drawCtx.stroke()
+
+  //Bullet
+  if (!player.bullet)
+    return
+
+  const bp = view.transform(player.bullet.position)
+  const br = view.transformSize(Bullet.Radius)
+
+  drawCtx.beginPath()
+  drawCtx.ellipse(
+    bp.x, bp.y,
+    br, br,
+    0,
+    0, 2 * Math.PI
+  )
+  drawCtx.closePath()
+  drawCtx.fillStyle = '#000'
+  drawCtx.fill()
 }
 
 function registerInput() {
@@ -175,6 +200,10 @@ function handleKeyDown(ev: KeyboardEvent) {
       chronology.addLeap(time, g => g.addPlayerTurnInput(id, new TurnDirectionState(TurnDirection.CounterClockwise, ActiveState.Active)))
       socket.emit(ClientEvents.TurnCounterClockwiseStart.name, { inputTime: time })
       break
+    case ' ':
+      chronology.addLeap(time, g => g.addPlayerShootInput(id, ActiveState.Active))
+      socket.emit(ClientEvents.ShootStart.name, { inputTime: time })
+      break
   }
 }
 
@@ -205,6 +234,10 @@ function handleKeyUp(ev: KeyboardEvent) {
     case 'ArrowLeft':
       chronology.addLeap(time, g => g.addPlayerTurnInput(id, new TurnDirectionState(TurnDirection.CounterClockwise, ActiveState.Inactive)))
       socket.emit(ClientEvents.TurnCounterClockwiseEnd.name, { inputTime: time })
+      break
+    case ' ':
+      chronology.addLeap(time, g => g.addPlayerShootInput(id, ActiveState.Inactive))
+      socket.emit(ClientEvents.ShootEnd.name, { inputTime: time })
       break
   }
 }
