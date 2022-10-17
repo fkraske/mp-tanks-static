@@ -16,7 +16,7 @@ import { Utils } from './shared/framework/util/numberUtils';
 import * as ClientEvents from './shared/game/communication/client';
 import { PORT } from './shared/game/constants';
 import { Bullet } from './shared/game/state/Bullet';
-import { Game } from './shared/game/state/Game';
+import { Game, GameState } from './shared/game/state/Game';
 import { Player } from './shared/game/state/Player';
 
 
@@ -115,7 +115,8 @@ function frameLoop() {
     view.offset = new Vector2(canvas.width, canvas.height).sub(view.zoom).div(2)
   }
 
-  drawCtx.clearRect(0, 0, canvas.width, canvas.height)
+  drawCtx.fillStyle = '#333'
+  drawCtx.fillRect(0, 0, canvas.width, canvas.height)
 
   drawCtx.fillStyle = '#ddd'
   drawCtx.fillRect(
@@ -125,8 +126,31 @@ function frameLoop() {
     view.zoom
   )
 
-  drawPlayer(display.state.player1, '#c53')
-  drawPlayer(display.state.player2, '#37b')
+  drawPlayer(display.value.player1, Constants.Players.ORANGE.style)
+  drawPlayer(display.value.player2, Constants.Players.BLUE.style)
+
+  if (display.value.state instanceof GameState.Finished) {
+    const winner = display.value.player1.lives === 0
+      ? Constants.Players.BLUE
+      : Constants.Players.ORANGE
+
+    drawCtx.fillStyle = winner.style
+    drawCtx.font = 'bold ' + (view.zoom / 6) + 'px Roboto'
+    drawCtx.textAlign = 'center'
+    drawCtx.textBaseline = 'middle'
+    drawCtx.fillText(
+      winner.name + ' wins!',
+      view.offset.x + view.zoom / 2,
+      view.offset.y + view.zoom / 2
+    )
+    drawCtx.strokeStyle = '#111'
+    drawCtx.lineWidth = view.zoom / 200
+    drawCtx.strokeText(
+      winner.name + ' wins!',
+      view.offset.x + view.zoom / 2,
+      view.offset.y + view.zoom / 2
+    )
+  }
 
   frameID = window.requestAnimationFrame(frameLoop)
 }
@@ -140,7 +164,7 @@ function drawPlayer(player: Player, style: string) {
   const pp = view.transform(player.position)
   const pr = view.transformSize(Player.Radius)
   const pf = view.transformDirection(player.forward)
-  
+
   drawCtx.fillStyle = drawCtx.strokeStyle = style
 
   //Player base
@@ -167,7 +191,7 @@ function drawPlayer(player: Player, style: string) {
   //Player lives
   const livesOffset = cannonOffset.negate()
   const live1Offset = new Vector2(livesOffset.y, -livesOffset.x).div(3)
-  
+
   for (let i = 0; i < player.lives; ++i) {
     drawCtx.beginPath()
     drawCtx.ellipse(
@@ -210,7 +234,6 @@ function deregisterInput() {
 }
 
 //TODO prevent repeated trigger
-//TODO use event stuff instead of duplicate code
 function handleKeyDown(ev: KeyboardEvent) {
   const time = Time.current
 
@@ -267,29 +290,29 @@ function handleKeyUp(ev: KeyboardEvent) {
     ClientEvents.ClientShootEvent |
     undefined
 
-    switch (ev.key) {
-      case 'w':
-        event = ClientEvents.MoveUpEnd
-        break
-      case 'd':
-        event = ClientEvents.MoveRightEnd
-        break
-      case 's':
-        event = ClientEvents.MoveDownEnd
-        break
-      case 'a':
-        event = ClientEvents.MoveLeftEnd
-        break
-      case 'ArrowRight':
-        event = ClientEvents.TurnClockwiseEnd
-        break
-      case 'ArrowLeft':
-        event = ClientEvents.TurnCounterClockwiseEnd
-        break
-      case ' ':
-        event = ClientEvents.ShootEnd
-        break
-    }
+  switch (ev.key) {
+    case 'w':
+      event = ClientEvents.MoveUpEnd
+      break
+    case 'd':
+      event = ClientEvents.MoveRightEnd
+      break
+    case 's':
+      event = ClientEvents.MoveDownEnd
+      break
+    case 'a':
+      event = ClientEvents.MoveLeftEnd
+      break
+    case 'ArrowRight':
+      event = ClientEvents.TurnClockwiseEnd
+      break
+    case 'ArrowLeft':
+      event = ClientEvents.TurnCounterClockwiseEnd
+      break
+    case ' ':
+      event = ClientEvents.ShootEnd
+      break
+  }
 
   if (event === undefined)
     return
@@ -299,7 +322,7 @@ function handleKeyUp(ev: KeyboardEvent) {
 
   chronology.addTimeStampedLeap(leap)
   socket.emit(event.name, payload)
-  
+
   Time.update()
   display.advance(Time.delta)
   display.leap(leap.value)
